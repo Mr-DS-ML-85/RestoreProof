@@ -1,0 +1,32 @@
+[Unit]
+Description=RestoreProof dashboard and API
+Documentation=https://github.com/restoreproof/restoreproof/blob/main/docs/installation.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=restoreproof
+Group=restoreproof
+EnvironmentFile=/etc/restoreproof/restoreproof.env
+ExecStart=/opt/restoreproof/venv/bin/restoreproof serve --host ${RESTOREPROOF_LISTEN} --port ${RESTOREPROOF_PORT}
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the API never needs to write outside the data directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/restoreproof
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

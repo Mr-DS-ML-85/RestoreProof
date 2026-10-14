@@ -1,0 +1,26 @@
+# Nextcloud template: assumes the backup contains the config + data directory and a pg_dump of the database
+# (Nextcloud should be in maintenance mode while dumping). Adjust paths and versions to your install.
+apiVersion: restoreproof.io/v1alpha1
+kind: RecoveryTest
+metadata:
+  name: nextcloud
+  description: Nextcloud files, config and PostgreSQL database
+spec:
+  source:
+    recoveryPoint: {policy: max_age, maxAgeHours: 30, tags: [nextcloud]}
+  restore:
+    maxDurationSeconds: 3600
+    basePath: srv/nextcloud
+  resources:
+    databases:
+      - {name: db, version: "16", dumpPath: db/nextcloud.sql, database: nextcloud, createRoles: [nextcloud]}
+  objectives: {rpoHours: 24, rtoMinutes: 120}
+  checks:
+    - {type: file_exists, path: config/config.php, kind: file}
+    - {type: dir_not_empty, path: data}
+    - {type: postgres_table_exists, target: db, table: public.oc_filecache}
+    - {type: postgres_table_exists, target: db, table: public.oc_users}
+    - {type: postgres_row_count, target: db, table: public.oc_users, min: 1}
+    - {type: postgres_query, target: db, name: installed-version,
+       query: "SELECT configvalue FROM public.oc_appconfig WHERE appid='core' AND configkey='installedat'",
+       expect: "", op: ne}

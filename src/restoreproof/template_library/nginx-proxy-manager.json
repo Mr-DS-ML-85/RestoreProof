@@ -1,0 +1,52 @@
+{
+  "id": "nginx-proxy-manager",
+  "name": "Nginx Proxy Manager",
+  "category": "Network",
+  "summary": "Check the proxy-host database and the Let's Encrypt certificates.",
+  "backup_guidance": [
+    "Back up both /data and /etc/letsencrypt; without the certificates every host must be re-issued."
+  ],
+  "params": [
+    {
+      "key": "data_dir",
+      "label": "Data folder",
+      "default": "data"
+    },
+    {
+      "key": "le_dir",
+      "label": "Let's Encrypt folder",
+      "default": "letsencrypt"
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "sqlite_integrity",
+          "path": "{{data_dir|prefix}}database.sqlite",
+          "tables": [
+            "proxy_host",
+            "user",
+            "certificate"
+          ]
+        },
+        {
+          "type": "dir_not_empty",
+          "path": "{{le_dir|prefix}}live",
+          "required": false,
+          "name": "certificates"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "id": "wordpress",
+  "name": "WordPress",
+  "category": "Websites",
+  "summary": "Check wp-config.php, uploads and the MariaDB/MySQL database (posts, options, site URL).",
+  "homepage": "https://developer.wordpress.org/advanced-administration/security/backup/",
+  "backup_guidance": [
+    "Dump the database right before the backup: `docker exec <db> mariadb-dump --single-transaction -u root -p<pw> wordpress > /srv/wordpress/db/wordpress.sql` (mysqldump on MySQL).",
+    "Back up the WordPress folder (wp-content holds themes, plugins and uploads) and the dump in the same snapshot."
+  ],
+  "params": [
+    {
+      "key": "wp_dir",
+      "label": "WordPress folder (contains wp-config.php)",
+      "default": "html",
+      "help": "Relative to the path; '.' if wp-config.php is at the top"
+    },
+    {
+      "key": "dump_path",
+      "label": "Database dump in the snapshot",
+      "default": "db/wordpress.sql",
+      "help": "A pattern like db/wp-*.sql picks the newest; .gz is decompressed"
+    },
+    {
+      "key": "db_engine",
+      "label": "Database",
+      "type": "select",
+      "default": "mariadb",
+      "options": [
+        "mariadb",
+        "mysql"
+      ]
+    },
+    {
+      "key": "db_version",
+      "label": "Database version",
+      "default": "11.4",
+      "help": "Same or newer than production (MySQL e.g. 8.0)"
+    },
+    {
+      "key": "table_prefix",
+      "label": "Table prefix",
+      "default": "wp_",
+      "help": "$table_prefix from wp-config.php"
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "resources": {
+        "databases": [
+          {
+            "name": "db",
+            "engine": "{{db_engine}}",
+            "version": "{{db_version}}",
+            "dumpPath": "{{dump_path}}",
+            "compression": "{{dump_path|gz}}",
+            "database": "wordpress"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "type": "file_exists",
+          "path": "{{wp_dir|prefix}}wp-config.php",
+          "kind": "file"
+        },
+        {
+          "type": "dir_not_empty",
+          "path": "{{wp_dir|prefix}}wp-content",
+          "name": "wp-content"
+        },
+        {
+          "type": "mysql_table_exists",
+          "target": "db",
+          "table": "{{table_prefix}}options"
+        },
+        {
+          "type": "mysql_table_exists",
+          "target": "db",
+          "table": "{{table_prefix}}posts"
+        },
+        {
+          "type": "mysql_query",
+          "target": "db",
+          "name": "site-url-configured",
+          "query": "SELECT COUNT(*) FROM `{{table_prefix}}options` WHERE option_name = 'siteurl'",
+          "expect": 1
+        },
+        {
+          "type": "mysql_row_count",
+          "target": "db",
+          "table": "{{table_prefix}}users",
+          "min": 1,
+          "name": "has-admin-user"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ],
+  "verified": "WordPress 7.1.3 on MariaDB 11.4"
+}

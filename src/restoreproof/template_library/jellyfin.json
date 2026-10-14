@@ -1,0 +1,43 @@
+{
+  "id": "jellyfin",
+  "name": "Jellyfin",
+  "category": "Media",
+  "summary": "Check Jellyfin's configuration and its SQLite database.",
+  "backup_guidance": [
+    "Stop Jellyfin before the backup (or use a pause_container hook); its database is busy while scanning."
+  ],
+  "params": [
+    {
+      "key": "db_path",
+      "label": "Database file",
+      "default": "data/jellyfin.db",
+      "help": "data/library.db on versions before 10.11"
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "file_exists",
+          "path": "config/system.xml",
+          "kind": "file"
+        },
+        {
+          "type": "sqlite_integrity",
+          "path": "{{db_path}}",
+          "mode": "quick_check"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

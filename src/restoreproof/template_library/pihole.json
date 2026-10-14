@@ -1,0 +1,57 @@
+{
+  "id": "pihole",
+  "name": "Pi-hole",
+  "category": "Network",
+  "summary": "Check the gravity database (block lists, allow/deny lists) and Pi-hole's config.",
+  "backup_guidance": [
+    "Back up the /etc/pihole folder (the etc-pihole volume). Teleporter exports are a useful extra."
+  ],
+  "params": [
+    {
+      "key": "version",
+      "label": "Pi-hole version",
+      "type": "select",
+      "default": "6",
+      "options": [
+        "6",
+        "5"
+      ]
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "sqlite_integrity",
+          "path": "gravity.db",
+          "tables": [
+            "adlist",
+            "domainlist"
+          ]
+        },
+        {
+          "$if": "version == 6",
+          "type": "file_exists",
+          "path": "pihole.toml",
+          "kind": "file"
+        },
+        {
+          "$if": "version == 5",
+          "type": "file_exists",
+          "path": "setupVars.conf",
+          "kind": "file"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

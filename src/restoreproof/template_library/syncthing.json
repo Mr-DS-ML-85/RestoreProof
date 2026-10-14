@@ -1,0 +1,48 @@
+{
+  "id": "syncthing",
+  "name": "Syncthing",
+  "category": "Files",
+  "summary": "Check Syncthing's identity (cert/key) and config.xml.",
+  "params": [
+    {
+      "key": "config_dir",
+      "label": "Syncthing config folder",
+      "default": "config"
+    }
+  ],
+  "layers": [
+    "data"
+  ],
+  "backup_guidance": [
+    "Back up the config folder: cert.pem and key.pem are the device identity; losing them means re-pairing every device."
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "file_exists",
+          "path": "{{config_dir|prefix}}config.xml",
+          "kind": "file"
+        },
+        {
+          "type": "file_exists",
+          "path": "{{config_dir|prefix}}cert.pem",
+          "kind": "file",
+          "name": "device-certificate"
+        },
+        {
+          "type": "file_exists",
+          "path": "{{config_dir|prefix}}key.pem",
+          "kind": "file",
+          "name": "device-key"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1"
+}

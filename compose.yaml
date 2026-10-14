@@ -1,0 +1,110 @@
+# RestoreProof on a single host. Full walkthrough: docs/installation.md
+#
+#   cp .env.example .env                       # set POSTGRES_PASSWORD and RESTOREPROOF_HOST_DATA
+#   mkdir -p secrets && umask 077 && python3 -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())' > secrets/restoreproof.key
+#   sudo chown 10001 secrets/restoreproof.key  # or set RESTOREPROOF_UID=<owner uid> in .env
+#   docker compose up -d --build
+#
+# RESTOREPROOF_HOST_DATA is mounted at the *same path* inside the worker: test containers are created by the
+# host's Docker daemon, which resolves bind-mount sources on the host, so restore directories must have an
+# identical path in both places.
+
+name: restoreproof
+
+x-common: &common
+  image: restoreproof:0.3.0
+  build: .
+  restart: unless-stopped
+  env_file: .env
+  environment: &env
+    RESTOREPROOF_DATABASE_URL: postgresql+psycopg://restoreproof:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/restoreproof
+    RESTOREPROOF_DATA_DIR: ${RESTOREPROOF_HOST_DATA:-/var/lib/restoreproof}
+    RESTOREPROOF_SECRET_KEY_FILE: /run/secrets/restoreproof_key
+    RESTOREPROOF_AUTO_MIGRATE: "false"
+  secrets: [restoreproof_key]
+  security_opt: ["no-new-privileges:true"]
+  networks: [internal]
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: restoreproof
+      POSTGRES_DB: restoreproof
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: ["./data/postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restoreproof -d restoreproof"]
+      interval: 5s
+      retries: 20
+    networks: [internal]
+
+  migrate:
+    <<: *common
+    user: "${RESTOREPROOF_UID:-10001}"
+    restart: "no"
+    command: ["migrate"]
+    healthcheck: {disable: true}
+    environment: {<<: *env, RESTOREPROOF_AUTO_MIGRATE: "true"}
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes:
+      - /var/lib/restoreproof:/var/lib/restoreproof
+  web:
+    <<: *common
+    user: "${RESTOREPROOF_UID:-10001}"   # must be able to read secrets/restoreproof.key
+    command: ["serve", "--host", "0.0.0.0", "--port", "8080"]
+    # Loopback only by default; put a TLS reverse proxy in front for remote access.
+    ports: ["127.0.0.1:${RESTOREPROOF_PORT:-8080}:8080"]
+    volumes:
+      # The API only reads finished reports; it never sees the temporary restore area.
+      - ${RESTOREPROOF_HOST_DATA:-/var/lib/restoreproof}/reports:${RESTOREPROOF_HOST_DATA:-/var/lib/restoreproof}/reports:ro
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp"]
+    # Docker cannot publish ports from a container that is only on an `internal` network.
+    networks: [internal, frontend]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  worker:
+    <<: *common
+    # The worker is the only component that talks to the Docker daemon, to create isolated, labelled test
+    # containers on an --internal network. Docker socket access is root-equivalent on the host: for
+    # untrusted or high-risk workloads run the worker on a dedicated VM/host (docs/threat-model.md).
+    user: "0"
+    command: ["worker", "--no-scheduler"]
+    healthcheck: {disable: true}   # liveness is tracked via worker heartbeats (dashboard: Settings > Workers)
+    volumes:
+      - ${RESTOREPROOF_HOST_DATA:-/var/lib/restoreproof}:${RESTOREPROOF_HOST_DATA:-/var/lib/restoreproof}
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount local restic repositories read-only, for example:
+      # - /mnt/backups/restic:/repos/main:ro
+      # Backup module: folders to back up (read-only) and local destinations (read-write), at the same paths:
+      # - /srv/vaultwarden:/srv/vaultwarden:ro
+      # - /mnt/usb:/mnt/usb
+    networks: [internal, egress]   # egress: remote repositories (s3:, sftp:, rest:) and image pulls
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  scheduler:
+    <<: *common
+    user: "${RESTOREPROOF_UID:-10001}"
+    command: ["scheduler"]
+    healthcheck: {disable: true}
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp"]
+    networks: [internal, egress]   # egress: notification delivery (ntfy, webhooks, SMTP)
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+secrets:
+  restoreproof_key:
+    file: ./secrets/restoreproof.key
+
+networks:
+  internal: {internal: true}   # postgres, migrate, and the internal side of every service
+  frontend: {}                 # web only: needed to publish the dashboard port on 127.0.0.1
+  egress: {}                   # worker + scheduler: remote repositories, image pulls, notifications

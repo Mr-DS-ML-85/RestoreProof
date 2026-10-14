@@ -1,0 +1,27 @@
+# Generic file recovery. Expected hashes must come from an independent source (a manifest produced at backup
+# time, or an earlier trusted observation), never from the restored copy itself.
+apiVersion: restoreproof.io/v1alpha1
+kind: RecoveryTest
+metadata:
+  name: documents
+  description: Paperless-style document store
+spec:
+  source:
+    adapter: restic
+    recoveryPoint: {policy: max_age, maxAgeHours: 36, host: nas, tags: [documents]}
+  restore:
+    maxDurationSeconds: 1800
+    maxBytes: 21474836480       # 20 GiB budget
+    basePath: srv/paperless     # backup was taken of /srv/paperless
+  repository: {check: true}     # structural check; add readDataSubset: "5%" to read pack data too
+  objectives: {rpoHours: 24, rtoMinutes: 60}
+  checks:
+    - {type: dir_not_empty, path: media/documents/originals}
+    - {type: file_count, path: media/documents/originals, min: 1000}
+    - {type: file_exists, path: data/db.sqlite3, kind: file}
+    - {type: file_size, path: data/db.sqlite3, minBytes: 1048576}
+    - {type: file_parse, path: export/manifest.json, format: json}
+    - {type: file_permissions, path: data, mode: "0750"}
+    - type: hash_manifest
+      entries:
+        - {path: media/documents/originals/0000001.pdf, sha256: "0000000000000000000000000000000000000000000000000000000000000000"}  # REPLACE with the hash from your manifest

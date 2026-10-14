@@ -1,0 +1,48 @@
+{
+  "id": "calibre-web",
+  "name": "Calibre-Web",
+  "category": "Documents",
+  "summary": "Check Calibre-Web's app.db and the Calibre library's metadata.db.",
+  "params": [
+    {
+      "key": "library_dir",
+      "label": "Calibre library folder",
+      "default": "books"
+    }
+  ],
+  "backup_guidance": [
+    "Back up the /config folder and the Calibre library (it contains metadata.db and the books) together."
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "sqlite_integrity",
+          "path": "config/app.db",
+          "tables": [
+            "user",
+            "settings"
+          ]
+        },
+        {
+          "type": "sqlite_integrity",
+          "path": "{{library_dir|prefix}}metadata.db",
+          "tables": [
+            "books",
+            "authors"
+          ]
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

@@ -1,0 +1,38 @@
+[Unit]
+Description=RestoreProof worker (recovery tests, backups, scheduler)
+Documentation=https://github.com/restoreproof/restoreproof/blob/main/docs/installation.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=restoreproof
+Group=restoreproof
+# Database and application checks need a container engine: install-native.sh adds this user to the docker
+# group (or use rootless Podman with RESTOREPROOF_DOCKER_BINARY=podman).
+EnvironmentFile=/etc/restoreproof/restoreproof.env
+ExecStart=/opt/restoreproof/venv/bin/restoreproof worker
+# Let a running test finish its cleanup before stopping.
+KillMode=mixed
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=10
+# Recovery tests run at low priority so they yield to production services on the same host.
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+# Backups of /home need read access; nothing under it is ever written.
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/restoreproof
+# Add local repository or backup-destination paths here (or in a drop-in: systemctl edit restoreproof-worker):
+# ReadWritePaths=/mnt/backups
+
+[Install]
+WantedBy=multi-user.target

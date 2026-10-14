@@ -1,0 +1,42 @@
+{
+  "id": "mealie",
+  "name": "Mealie",
+  "category": "Home",
+  "summary": "Check Mealie's SQLite database (recipes and users).",
+  "params": [],
+  "backup_guidance": [
+    "Back up the /app/data folder; Mealie's own backup export is a useful extra."
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "sqlite_integrity",
+          "path": "mealie.db",
+          "tables": [
+            "recipes",
+            "users"
+          ]
+        },
+        {
+          "type": "sqlite_query",
+          "path": "mealie.db",
+          "name": "has-users",
+          "query": "SELECT COUNT(*) FROM users",
+          "expect": 1,
+          "op": "gte"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

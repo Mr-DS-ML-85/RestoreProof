@@ -1,0 +1,93 @@
+{
+  "id": "grafana",
+  "name": "Grafana",
+  "category": "Monitoring",
+  "summary": "Check grafana.db (dashboards, data sources, users).",
+  "backup_guidance": [
+    "Back up /var/lib/grafana. With SQLite, stop Grafana or use a sqlite_backup hook for grafana.db."
+  ],
+  "params": [
+    {
+      "key": "grafana_version",
+      "label": "Grafana version",
+      "type": "select",
+      "default": "12 or newer",
+      "options": [
+        "12 or newer",
+        "11 or older"
+      ],
+      "help": "Grafana 12+ stores dashboards in its new unified storage"
+    },
+    {
+      "key": "has_dashboards",
+      "label": "Require at least one dashboard",
+      "type": "bool",
+      "default": true
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "$if": "grafana_version == 12 or newer",
+          "type": "sqlite_integrity",
+          "path": "grafana.db",
+          "tables": [
+            "resource",
+            "data_source",
+            "user"
+          ]
+        },
+        {
+          "$if": "grafana_version == 11 or older",
+          "type": "sqlite_integrity",
+          "path": "grafana.db",
+          "tables": [
+            "dashboard",
+            "data_source",
+            "user"
+          ]
+        },
+        {
+          "$if": "grafana_version == 12 or newer",
+          "$each": [
+            {
+              "$if": "has_dashboards",
+              "type": "sqlite_query",
+              "name": "has-dashboards",
+              "path": "grafana.db",
+              "query": "SELECT count(*) FROM resource WHERE \"group\" = 'dashboard.grafana.app' AND resource = 'dashboards'",
+              "expect": 1,
+              "op": "gte"
+            }
+          ]
+        },
+        {
+          "$if": "grafana_version == 11 or older",
+          "$each": [
+            {
+              "$if": "has_dashboards",
+              "type": "sqlite_query",
+              "name": "has-dashboards",
+              "path": "grafana.db",
+              "query": "SELECT count(*) FROM dashboard WHERE is_folder = 0",
+              "expect": 1,
+              "op": "gte"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ],
+  "verified": "Grafana 13.2.4 (12+ storage)"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "adguard-home",
+  "name": "AdGuard Home",
+  "category": "Network",
+  "summary": "Check AdGuardHome.yaml parses and the work/data folder is present.",
+  "backup_guidance": [
+    "Back up both the conf and work folders."
+  ],
+  "params": [
+    {
+      "key": "conf_dir",
+      "label": "Config folder",
+      "default": "conf"
+    },
+    {
+      "key": "work_dir",
+      "label": "Work folder",
+      "default": "work"
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "file_parse",
+          "path": "{{conf_dir|prefix}}AdGuardHome.yaml",
+          "format": "yaml"
+        },
+        {
+          "type": "dir_not_empty",
+          "path": "{{work_dir|prefix}}data"
+        }
+      ]
+    }
+  },
+  "layers": [
+    "data"
+  ],
+  "format": "restoreproof-template/v1"
+}

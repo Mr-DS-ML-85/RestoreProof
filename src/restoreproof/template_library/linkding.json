@@ -1,0 +1,34 @@
+{
+  "id": "linkding",
+  "name": "linkding",
+  "category": "Home",
+  "summary": "Check the bookmark database.",
+  "params": [],
+  "backup_guidance": [
+    "Back up /etc/linkding/data; use a sqlite_backup hook for db.sqlite3 while it runs."
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "sqlite_integrity",
+          "path": "db.sqlite3",
+          "tables": [
+            "bookmarks_bookmark",
+            "auth_user"
+          ]
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

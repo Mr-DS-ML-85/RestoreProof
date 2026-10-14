@@ -1,0 +1,53 @@
+{
+  "id": "uptime-kuma",
+  "name": "Uptime Kuma",
+  "category": "Monitoring",
+  "summary": "Check the kuma.db database (monitors, users, heartbeats) in the data folder.",
+  "backup_guidance": [
+    "Back up the whole /app/data folder. Stop the container or use a sqlite_backup hook so kuma.db is consistent."
+  ],
+  "params": [
+    {
+      "key": "has_monitors",
+      "label": "Require at least one monitor",
+      "type": "bool",
+      "default": true
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "sqlite_integrity",
+          "path": "kuma.db",
+          "tables": [
+            "monitor",
+            "user",
+            "heartbeat",
+            "setting"
+          ]
+        },
+        {
+          "$if": "has_monitors",
+          "type": "sqlite_query",
+          "name": "has-monitors",
+          "path": "kuma.db",
+          "query": "SELECT COUNT(*) FROM monitor",
+          "expect": 1,
+          "op": "gte"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ],
+  "verified": "Uptime Kuma 2.5.6"
+}

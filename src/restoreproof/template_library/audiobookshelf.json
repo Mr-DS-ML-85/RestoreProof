@@ -1,0 +1,39 @@
+{
+  "id": "audiobookshelf",
+  "name": "Audiobookshelf",
+  "category": "Media",
+  "summary": "Check the Audiobookshelf database and metadata folder.",
+  "backup_guidance": [
+    "Back up /config and /metadata; the built-in backups folder is a good extra."
+  ],
+  "params": [],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "sqlite_integrity",
+          "path": "config/absdatabase.sqlite",
+          "tables": [
+            "libraries",
+            "users"
+          ]
+        },
+        {
+          "type": "dir_not_empty",
+          "path": "metadata",
+          "required": false
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

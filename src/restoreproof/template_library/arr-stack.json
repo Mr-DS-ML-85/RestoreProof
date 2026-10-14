@@ -1,0 +1,53 @@
+{
+  "id": "arr-stack",
+  "name": "Sonarr / Radarr / Lidarr / Prowlarr",
+  "category": "Media",
+  "summary": "Check config.xml and the *arr SQLite database.",
+  "backup_guidance": [
+    "Back up the app's /config folder. The built-in scheduled backups (Backups/scheduled/*.zip) are a good extra safety net."
+  ],
+  "params": [
+    {
+      "key": "app",
+      "label": "Which app",
+      "type": "select",
+      "default": "sonarr",
+      "options": [
+        "sonarr",
+        "radarr",
+        "lidarr",
+        "prowlarr",
+        "readarr",
+        "whisparr"
+      ]
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "file_exists",
+          "path": "config.xml",
+          "kind": "file"
+        },
+        {
+          "type": "sqlite_integrity",
+          "path": "{{app}}.db",
+          "tables": [
+            "Config"
+          ]
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

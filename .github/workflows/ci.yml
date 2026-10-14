@@ -1,0 +1,68 @@
+name: ci
+on:
+  push:
+  pull_request:
+  schedule: [{cron: "0 4 * * 1"}]
+permissions: {contents: read}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_PASSWORD: ci}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    strategy:
+      matrix:
+        metadata-db: [sqlite, postgres]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - name: Install restic 0.18.1
+        run: |
+          curl -fsSLO https://github.com/restic/restic/releases/download/v0.18.1/restic_0.18.1_linux_amd64.bz2
+          curl -fsSLO https://github.com/restic/restic/releases/download/v0.18.1/SHA256SUMS
+          sha256sum --ignore-missing -c SHA256SUMS
+          bunzip2 restic_0.18.1_linux_amd64.bz2 && sudo install restic_0.18.1_linux_amd64 /usr/local/bin/restic
+      - run: pip install -e '.[dev,postgres]' pip-audit
+      - run: ruff check src tests
+      - name: Tests
+        env:
+          RESTOREPROOF_TEST_PG_URL: ${{ matrix.metadata-db == 'postgres' && 'postgresql+psycopg://postgres:ci@127.0.0.1:5432/postgres' || '' }}
+        run: pytest -q
+      - name: Dependency audit
+        run: pip-audit --skip-editable
+      - name: Validate examples
+        run: for f in examples/*.yaml; do restoreproof validate "$f"; done
+      - name: Templates doc is up to date
+        run: restoreproof templates --markdown 2>/dev/null | diff -u docs/templates.md -
+      - name: Installer syntax
+        run: bash -n install.sh && bash -n install-native.sh
+
+  image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build amd64 + arm64 (Raspberry Pi 4/5, Ampere)
+        run: docker buildx build --platform linux/amd64,linux/arm64 -t restoreproof:ci .
+      - name: Run the test suite inside the arm64 image
+        run: |
+          docker buildx build --platform linux/arm64 --load -t restoreproof:arm64 .
+          docker run --rm --platform linux/arm64 -u 0 --entrypoint sh -v "$PWD/tests:/app/tests:ro" restoreproof:arm64 \
+            -c 'pip install -q pytest httpx && cd /app && python -m pytest -q -p no:cacheprovider tests/unit tests/integration/test_failure_matrix.py'
+
+  # Weekly (and on commits containing [realapps]): every template against the real upstream app images.
+  real-apps:
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[realapps]')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: sudo apt-get update && sudo apt-get install -y restic && pip install -e '.[dev,postgres]'
+      - run: RESTOREPROOF_REALAPP_TESTS=1 pytest tests/realapps -v

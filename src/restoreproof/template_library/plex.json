@@ -1,0 +1,53 @@
+{
+  "id": "plex",
+  "name": "Plex Media Server",
+  "category": "Media",
+  "summary": "Check Preferences.xml (server identity) and the library database.",
+  "params": [
+    {
+      "key": "pms_dir",
+      "label": "Plex Media Server folder",
+      "default": "Library/Application Support/Plex Media Server"
+    }
+  ],
+  "caveats": [
+    "Plex's database uses a custom full-text-search module, so the integrity check is advisory."
+  ],
+  "backup_guidance": [
+    "Stop Plex for the backup; exclude Cache/ and Codecs/ to save space."
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "checks": [
+        {
+          "type": "file_exists",
+          "path": "{{pms_dir}}/Preferences.xml",
+          "kind": "file"
+        },
+        {
+          "type": "file_exists",
+          "path": "{{pms_dir}}/Plug-in Support/Databases/com.plexapp.plugins.library.db",
+          "kind": "file",
+          "name": "library-database"
+        },
+        {
+          "type": "sqlite_integrity",
+          "path": "{{pms_dir}}/Plug-in Support/Databases/com.plexapp.plugins.library.db",
+          "mode": "quick_check",
+          "required": false,
+          "name": "library-database-integrity"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}

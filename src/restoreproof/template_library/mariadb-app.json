@@ -1,0 +1,99 @@
+{
+  "id": "mariadb-app",
+  "name": "MariaDB / MySQL database",
+  "category": "Databases",
+  "summary": "Restore a mariadb-dump/mysqldump into a throwaway server and check tables and row counts.",
+  "backup_guidance": [
+    "Dump with `--single-transaction` right before restic runs, and make the backup job fail if the dump fails."
+  ],
+  "params": [
+    {
+      "key": "dump_path",
+      "label": "Dump file in the snapshot",
+      "default": "db/dump.sql"
+    },
+    {
+      "key": "db_engine",
+      "label": "Database",
+      "type": "select",
+      "default": "mariadb",
+      "options": [
+        "mariadb",
+        "mysql"
+      ]
+    },
+    {
+      "key": "db_version",
+      "label": "Version",
+      "default": "11.4"
+    },
+    {
+      "key": "database",
+      "label": "Database name",
+      "default": "app"
+    },
+    {
+      "key": "tables",
+      "label": "Tables that must exist",
+      "type": "list",
+      "default": "",
+      "help": "comma separated"
+    },
+    {
+      "key": "nonempty_table",
+      "label": "A table that must have rows",
+      "default": ""
+    }
+  ],
+  "definition": {
+    "apiVersion": "restoreproof.io/v1alpha1",
+    "kind": "RecoveryTest",
+    "metadata": {
+      "name": "{{name}}"
+    },
+    "spec": {
+      "resources": {
+        "databases": [
+          {
+            "name": "db",
+            "engine": "{{db_engine}}",
+            "version": "{{db_version}}",
+            "dumpPath": "{{dump_path}}",
+            "compression": "{{dump_path|gz}}",
+            "database": "{{database}}"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "$for": "tables",
+          "$item": {
+            "type": "mysql_table_exists",
+            "target": "db",
+            "table": "{{_}}"
+          }
+        },
+        {
+          "$if": "nonempty_table",
+          "type": "mysql_row_count",
+          "target": "db",
+          "table": "{{nonempty_table}}",
+          "min": 1
+        },
+        {
+          "type": "mysql_query",
+          "target": "db",
+          "name": "has-tables",
+          "query": "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()",
+          "expect": 1,
+          "op": "gte"
+        }
+      ]
+    }
+  },
+  "format": "restoreproof-template/v1",
+  "layers": [
+    "data",
+    "database"
+  ]
+}
